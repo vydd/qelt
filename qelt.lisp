@@ -12,25 +12,26 @@
      ,(hex-to-color "#c3423f")
      ,(hex-to-color "#404e4d")))
 
-(defun c (idx)
+(defparameter *font-face* (load-resource (sketch::relative-path "HKGrotesk-Regular.otf")))
+
+(defun color (idx)
   (aref *palette* (mod idx (array-dimension *palette* 0))))
 
-(defun p (idx)
+(defun pen (idx)
   (typecase idx
-    (number (make-pen :fill (c idx)))
-    (t (make-pen :fill (c (position idx #(:blue :yellow :green :red)))))))
+    (number (make-pen :fill (color idx)))
+    (t (make-pen :fill (color (position idx #(:blue :yellow :green :red)))))))
 
-(defun s (idx)
+(defun shape (idx)
   (case idx
     ((0 :cross)
      (with-current-matrix
-       (translate 50 50)
-       (polygon -26 -6.5 -6.5 -6.5 -6.5 -26 6.5 -26 6.5 -6.5 26
-		-6.5 26 6.5 6.5 6.5 6.5 26 -6.5 26 -6.5 6.5 -26 6.5)))
+       (polygon 24 43.5 43.5 43.5 43.5 24 56.5 24 56.5 43.5 76
+		43.5 76 56.5 56.5 56.5 56.5 76 43.5 76 43.5 56.5 24 56.5)))
     ((1 :square)
      (with-current-matrix
        (rotate 45 50 50)
-       (rect 22.5 22.5 55 55)))
+       (rect 24 24 53.5 53.5)))
     ((2 :triangle)
      (with-current-matrix
        (translate -5 -5)
@@ -55,14 +56,17 @@
    (angle :initform 0)
    (animator :initform (lambda ()))))
 
-(defmethod ring-animate ((instance ring))
+(defclass color-ring (ring) ())
+(defclass shape-ring (ring) ())
+
+(defmethod animate ((instance ring))
   (funcall (slot-value instance 'animator)))
 
-(defun draw-with-visuals (angle left fdraw)
+(defun draw-ring-with-visuals (angle left fdraw)
   (with-current-matrix
-    (with-pen (make-pen :stroke (c 4) :weight -5)
+    (with-pen (make-pen :stroke (color 4) :weight -5)
       (translate left 300)
-      (with-pen (make-pen :fill (c 4))
+      (with-pen (make-pen :fill (color 4))
 	(circle 0 0 10))
       (scale 0.8)
       (rotate (+ 45 angle))
@@ -72,22 +76,27 @@
 	  (funcall fdraw i))
 	(rotate 90)))))
 
-(defmethod ring-draw ((instance ring) (visuals (eql :colors)))
-  (draw-with-visuals (slot-value instance 'angle) 220
-		     (lambda (i) (with-pen (p i) (s :circle)))))
+(defmethod draw ((instance color-ring) &key &allow-other-keys)
+  (draw-ring-with-visuals
+   (slot-value instance 'angle) 220
+   (lambda (i) (with-pen (pen i) (shape :circle)))))
 
-(defmethod ring-draw ((instance ring) (visuals (eql :shapes)))
-  (draw-with-visuals (slot-value instance 'angle) 580
-		     (lambda (i) (s i))))
+(defmethod draw ((instance shape-ring) &key &allow-other-keys)
+  (draw-ring-with-visuals
+   (slot-value instance 'angle) 580
+   (lambda (i)
+     (when (= i 2)
+       (translate 6 6))
+     (shape i))))
 
-(defmethod ring-state ((instance ring) (visuals (eql :colors)))
+(defmethod state ((instance color-ring))
   (aref #(:red :green :yellow :blue) (slot-value instance 'state)))
 
 
-(defmethod ring-state ((instance ring) (visuals (eql :shapes)))
+(defmethod state ((instance shape-ring))
   (aref #(:square :cross :circle :triangle) (slot-value instance 'state)))
 
-(defmethod ring-rotate ((instance ring) direction)
+(defmethod move ((instance ring) direction)
   (with-slots (state angle animator) instance
     (let ((prev-state state))
       (setf state (mod (+ state direction) 4)
@@ -99,95 +108,183 @@
 ;;; BELT
 
 (defclass belt ()
-  ((items :initform (make-array 8 :initial-contents
-				'((:green :cross)
-				  (:blue :square)
-				  (:red :triangle)
-				  (:yellow :square)
-				  (:blue :circle)
-				  (:green :triangle)
-				  (:red :circle)
-				  (:blue :square))))
+  ((items :initform (make-array 8 :initial-element nil))
    (translation :initform 0)
    (animator :initform (lambda ()))))
 
-(defmethod belt-move ((instance belt))
+(let ((colors #(:red :blue :green :yellow))
+      (shapes #(:circle :square :triangle :cross)))
+  (defun generate-item (invalid)
+    (loop for item = invalid
+       then (list (aref colors (random 4))
+		  (aref shapes (random 4)))
+       if (not (and (eql (first item) (first invalid))
+		    (eql (second item) (second invalid))))
+       return item)))
+
+(defmethod move ((instance belt) invalid-next-item)
   (with-slots (items animator translation) instance
     (setf animator (make-animator #'ease:out-circ
-				  0 100 10
+				  0 100 12
 				  (lambda (x) (setf translation x))
 				  (lambda () (setf animator (lambda ())))))
     (dotimes (i (- (array-dimension items 0) 1))
       (setf (aref items i) (aref items (+ i 1))))
-    (setf (aref items (- (array-dimension items 0) 1)) (list (random 4) (random 4)))))
+    (setf (aref items (- (array-dimension items 0) 1)) (generate-item invalid-next-item))))
 
-(defmethod belt-animate ((instance belt))
+(defmethod animate ((instance belt))
   (funcall (slot-value instance 'animator)))
-
 
 (defmethod draw ((instance belt) &key &allow-other-keys)
   (with-slots (items translation) instance
     (with-current-matrix
       (translate 0 (- translation))
       (loop for (color shape) across items
-	 if (and color shape)
 	 do (progn
 	      (with-current-matrix
 		(translate 400 0)
 		(rotate 225)
 		(translate -50 -50)
-		(with-pen (p color)
-		  (s shape)))
+		(when (and color shape)
+		  (with-pen (pen color)
+		    (shape shape))))
 	      (translate 0 100))))))
+
+(defmethod reset ((instance belt))
+  (setf (slot-value instance 'items) (make-array 8 :initial-element nil)))
+
+;;; SCANNER
+
+(defclass scanner ()
+  ((fill :initform 0)
+   (belt :initarg :belt)
+   (game)
+   (color-ring :initarg :color-ring)
+   (shape-ring :initarg :shape-ring)))
+
+(defmethod draw ((instance scanner) &key &allow-other-keys)
+  (with-slots (fill) instance
+    (with-pen (make-pen :stroke (gray 0.92))
+      (rect 320 250 160 100))
+    (with-pen (make-pen :fill (gray 0.92))
+      (rect 320 (- 350 fill) 160 fill))))
+
+(defmethod reset ((instance scanner))
+  (setf (slot-value instance 'fill) 0))
+
+(defmethod move ((instance scanner) fill)
+  (incf (slot-value instance 'fill) fill)
+  (<= (slot-value instance 'fill) 100))
+
+(defmethod scan ((instance scanner))
+  (aref (slot-value (slot-value instance 'belt) 'items) 4))
+
+(defmethod selection ((instance scanner))
+  (list (state (slot-value instance 'color-ring))
+	(state (slot-value instance 'shape-ring))))
 
 ;;; GAME
 
+(defclass game ()
+  ((belt :initarg :belt)
+   (scanner :initarg :scanner)
+   (level :initform 0)
+   (score :initform 0)
+   (state :initform :initial) ;; :initial, :running, :lost
+   (time :initform 0)))
+
+(defmethod tick ((instance game))
+  (with-slots (belt scanner level score running time) instance
+    (incf time)
+    (when (zerop (mod time (- 6 level)))
+      (unless (move scanner 1)
+	(end instance)))
+    (when (zerop (mod time (- 60 (* level 4))))
+      (move belt (selection scanner)))))
+
+(defmethod action ((instance game))
+  (with-slots (scanner score state time belt level) instance
+    (let ((scan (scan scanner))
+	  (select (selection scanner)))
+      (if (and (eql (first scan) (first select))
+	       (eql (second scan) (second select)))
+	  (progn
+	    (incf score)
+	    (when (member score '(10 50 100 500 1000))
+	      (setf level (min 5 (+ level 1))))
+	    (move belt (selection scanner))
+	    (setf time 0)
+	    (reset scanner))
+	  (end instance)))))
+
+(defmethod start ((instance game))
+  (with-slots (state score) instance
+    (setf state :running
+	  score 0)))
+
+(defmethod end ((instance game))
+  (with-slots (belt scanner level state time) instance
+      (setf state :lost
+	    time 0
+	    level 0)
+      (reset belt)
+      (reset scanner)))
+
 (defsketch qelt
     ((title "QELT") (width 800) (height 600)
-     (color-ring (make-instance 'ring))
-     (shape-ring (make-instance 'ring))
+     (color-ring (make-instance 'color-ring))
+     (shape-ring (make-instance 'shape-ring))
      (belt (make-instance 'belt))
-     (frames 0))
-  (incf frames)
-  (when (zerop (mod frames 60))
-    (belt-move belt))
+     (scanner (make-instance 'scanner :belt belt :color-ring color-ring :shape-ring shape-ring))
+     (game (make-instance 'game :belt belt :scanner scanner)))
   (background +white+)
-  (with-font (make-font :face (load-resource "~/HKGrotesk-Regular.otf")
-			:size 30
-			:color (c 4))
-    (text title 700 540)
-    (text (format nil "SCORE~6d" 1) 30 540))
-  (with-font (make-font :face (load-resource "~/HKGrotesk-Regular.otf")
-			:size 16
-			:color (c 4))
-    (text "A - D" 202 400)
-    (text "LEFT - RIGHT" 535 400))
-  (ring-animate color-ring)
-  (ring-animate shape-ring)
-  (belt-animate belt)
-  (ring-draw color-ring :colors)
-  (ring-draw shape-ring :shapes)
-  (draw-scanner (mod (truncate frames 2) 100))
-  (draw belt))
+  (case (slot-value game 'state)
+    (:initial
+     (with-font (make-font :face *font-face* :size 80 :color (color 4))
+       (text title 300 200))
+     (with-font (make-font :face *font-face* :size 40 :color (color 4))
+       (text "PRESS SPACE TO START" 184 290))
+     (with-font (make-font :face *font-face* :size 20 :color (color 4))
+       (text "(c) Danilo Vidovic (vydd)" 286 440)
+       (text "made during Spring Lisp Game Jam 2016" 218 460)))
+    (:running
+     (with-font (make-font :face *font-face* :size 30 :color (color 4))
+       (text title 700 540)
+       (text (format nil "SCORE~6d" (slot-value game 'score)) 30 540))
+     (with-font (make-font :face *font-face* :size 16 :color (color 4))
+       (text "D - F" 203 400)
+       (text "J - K" 564 400))
+     (tick game)
+     (animate color-ring)
+     (animate shape-ring)
+     (animate belt)
+     (draw color-ring)
+     (draw shape-ring)
+     (draw scanner)
+     (draw belt))
+    (:lost
+     (with-font (make-font :face *font-face* :size 80 :color (color 4))
+       (text (format nil "SCORE~8d" (slot-value game 'score)) 172 200))
+     (with-font (make-font :face *font-face* :size 40 :color (color 4))
+       (text "PRESS R TO RESTART" 205 290)))))
 
 (defmethod kit.sdl2:keyboard-event ((instance qelt) state timestamp repeat-p keysym)
   (declare (ignorable timestamp repeat-p keysym))
-  (with-slots (color-ring shape-ring belt) instance
-      (when (eql state :keydown)
-	(cond ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-a) (ring-rotate color-ring -1))
-	      ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-d) (ring-rotate color-ring 1))
-	      ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-left) (ring-rotate shape-ring -1))
-	      ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-right) (ring-rotate shape-ring 1))))))
-
-
-(defun draw-scanner (height)
-  ;; (with-pen (make-pen :stroke (c 4) :weight 2)
-  ;;   (line 320 250 480 250)
-  ;;   (line 320 350 480 350))
-  (with-pen (make-pen :stroke (gray 0.85 0.5))
-      (rect 320 250 160 100))
-  (with-pen (make-pen :fill (gray 0.85 0.5))
-    (rect 320 (- 350 height) 160 height)))
+  (with-slots (color-ring shape-ring scanner game) instance
+    (when (eql state :keydown)
+      (case (slot-value game 'state)
+	(:initial
+	 (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-space)
+	   (start game)))
+	(:running
+	 (cond ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-d) (move color-ring -1))
+	       ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-f) (move color-ring 1))
+	       ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-j) (move shape-ring -1))
+	       ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-k) (move shape-ring 1))
+	       ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-space) (action game))))
+	(:lost
+	 (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-r)
+	   (start game)))))))
 
 (defun qelt ()
   (make-instance 'qelt))
