@@ -12,7 +12,7 @@
      ,(hex-to-color "#c3423f")
      ,(hex-to-color "#404e4d")))
 
-(defparameter *font-face* (load-resource (sketch::relative-path "HKGrotesk-Regular.otf" 'qelt)))
+(defvar *font-face*)
 
 (defun color (idx)
   (aref *palette* (mod idx (array-dimension *palette* 0))))
@@ -190,7 +190,7 @@
    (scanner :initarg :scanner)
    (level :initform 0)
    (score :initform 0)
-   (state :initform :initial) ;; :initial, :running, :lost
+   (state :initform :initial) ;; :initial, :starting, :running, :lost
    (time :initform 0)))
 
 (defmethod tick ((instance game))
@@ -204,6 +204,7 @@
 
 (defmethod action ((instance game))
   (with-slots (scanner score state time belt level) instance
+    (setf state :running)
     (let ((scan (scan scanner))
 	  (select (selection scanner)))
       (if (and (eql (first scan) (first select))
@@ -219,7 +220,7 @@
 
 (defmethod start ((instance game))
   (with-slots (state score) instance
-    (setf state :running
+    (setf state :starting
 	  score 0)))
 
 (defmethod end ((instance game))
@@ -247,7 +248,10 @@
      (with-font (make-font :face *font-face* :size 20 :color (color 4))
        (text "(c) Danilo Vidovic (vydd)" 286 440)
        (text "made during Spring Lisp Game Jam 2016" 218 460)))
-    (:running
+    ((:starting :running)
+     (when (eql (slot-value game 'state) :starting)
+       (with-font (make-font :face *font-face* :size 16 :color (color 4))
+	 (text "PRESS SPACE WHEN YOU MATCH SHAPE AND COLOR" 208 143)))
      (with-font (make-font :face *font-face* :size 30 :color (color 4))
        (text title 700 540)
        (text (format nil "SCORE~6d" (slot-value game 'score)) 30 540))
@@ -268,6 +272,9 @@
      (with-font (make-font :face *font-face* :size 40 :color (color 4))
        (text "PRESS R TO RESTART" 205 290)))))
 
+(defmethod setup ((instance qelt) &key &allow-other-keys)
+  (setf *font-face* (load-resource (sketch::relative-path "HKGrotesk-Regular.otf" 'qelt))))
+
 (defmethod kit.sdl2:keyboard-event ((instance qelt) state timestamp repeat-p keysym)
   (declare (ignorable timestamp repeat-p keysym))
   (with-slots (color-ring shape-ring scanner game) instance
@@ -276,7 +283,7 @@
 	(:initial
 	 (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-space)
 	   (start game)))
-	(:running
+	((:starting :running)
 	 (cond ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-d) (move color-ring -1))
 	       ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-f) (move color-ring 1))
 	       ((sdl2:scancode= (sdl2:scancode-value keysym) :scancode-j) (move shape-ring -1))
