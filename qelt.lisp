@@ -196,10 +196,10 @@
 (defmethod tick ((instance game))
   (with-slots (belt scanner level score running time) instance
     (incf time)
-    (when (zerop (mod time (- 6 level)))
+    (when (zerop (mod time (max 1 (- 6 (truncate level 2)))))
       (unless (move scanner 1)
 	(end instance)))
-    (when (zerop (mod time (- 60 (* level 4))))
+    (when (zerop (mod time (max 1 (- 80 (* level 5)))))
       (move belt (selection scanner)))))
 
 (defmethod action ((instance game))
@@ -211,8 +211,8 @@
 	       (eql (second scan) (second select)))
 	  (progn
 	    (incf score)
-	    (when (member score '(10 50 100 500 1000))
-	      (setf level (min 5 (+ level 1))))
+	    (when (member score '(5 10 20 50 100 250 500 1000 5000 10000))
+	      (incf level))
 	    (move belt (selection scanner))
 	    (setf time 0)
 	    (reset scanner))
