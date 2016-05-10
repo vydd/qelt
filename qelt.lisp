@@ -12,7 +12,7 @@
      ,(hex-to-color "#c3423f")
      ,(hex-to-color "#404e4d")))
 
-(defparameter *font-face* (load-resource (sketch::relative-path "HKGrotesk-Regular.otf")))
+(defparameter *font-face* (load-resource (sketch::relative-path "HKGrotesk-Regular.otf" 'qelt)))
 
 (defun color (idx)
   (aref *palette* (mod idx (array-dimension *palette* 0))))
