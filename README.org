@@ -1,0 +1,15 @@
+* QELT
+
+QELT is an action puzzle game made during Spring 2016 Lisp Game Jam.
+
+[[http://imgur.com/DN9B9hG]]
+
+Use =D=/=F= and =J=/=K= keys to rotate the rings. To get points, hit =SPACE= when the object in the scanner box aligns with the color on the left and the shape on the right. You don't have to match all shapes, but make sure that the scanner doesn't fill up before you make another match. The game is lost when the scanner fills up, or when =SPACE= is hit on an invalid match.
+
+** Installation
+
+You'll need to checkout https://github.com/vydd/sketch dev branch and https://github.com/vydd/easing , along with this repo, and put both inside your =~/quicklisp/local-projects= directory. Also, you're going to need SDL2, SDL2-Image and SDL2-ttf libraries from https://www.libsdl.org/download-2.0.php .
+
+Run the game by quickloading =QELT= in your CL using =(ql:quickload :qelt)= and run the game with =(qelt:qelt)=.
+
+If you need help, ask vydd at #lispgames.
