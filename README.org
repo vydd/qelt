@@ -2,7 +2,7 @@
 
 QELT is an action puzzle game made during Spring 2016 Lisp Game Jam.
 
-[[http://imgur.com/DN9B9hG]]
+[[http://i.imgur.com/DN9B9hG.png]]
 
 Use =D=/=F= and =J=/=K= keys to rotate the rings. To get points, hit =SPACE= when the object in the scanner box aligns with the color on the left and the shape on the right. You don't have to match all shapes, but make sure that the scanner doesn't fill up before you make another match. The game is lost when the scanner fills up, or when =SPACE= is hit on an invalid match.
 
