@@ -199,7 +199,7 @@
     (when (zerop (mod time (max 1 (- 6 (truncate level 2)))))
       (unless (move scanner 1)
 	(end instance)))
-    (when (zerop (mod time (max 1 (- 80 (* level 5)))))
+    (when (zerop (mod time (max 1 (- 60 (* level 5)))))
       (move belt (selection scanner)))))
 
 (defmethod action ((instance game))
